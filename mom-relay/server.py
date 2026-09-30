@@ -22,7 +22,7 @@ mcp = MCPServer(
     "mom-relay",
     instructions=(
         "Relay MOM/M0J1M0J1 control calls to the authorized Windows MOM agent. "
-        "No arbitrary shell execution is available."
+        "Restricted repo maintenance is available; no arbitrary shell execution is exposed."
     ),
 )
 
@@ -217,6 +217,39 @@ async def mom_enqueue(experiment: int, revision: int = 1, max_attempts: int = 1)
 async def mom_sync() -> dict[str, Any]:
     """Fast-forward the MOM worktree when the supervisor is idle."""
     return await dispatch("mom_sync", {})
+
+@mcp.tool()
+async def mom_read_file(path: str, start_line: int = 1, end_line: int = 400) -> dict[str, Any]:
+    """Read a bounded text range from an allowed MOM repo file."""
+    return await dispatch("mom_read_file", {"path": path, "start_line": int(start_line), "end_line": int(end_line)})
+
+@mcp.tool()
+async def mom_patch_file(path: str, old_string: str, new_string: str, expected_replacements: int = 1) -> dict[str, Any]:
+    """Apply an exact bounded text replacement inside allowed MOM repo roots."""
+    return await dispatch("mom_patch_file", {
+        "path": path, "old_string": old_string, "new_string": new_string,
+        "expected_replacements": int(expected_replacements),
+    })
+
+@mcp.tool()
+async def mom_write_file(path: str, content: str, overwrite: bool = False) -> dict[str, Any]:
+    """Create or replace an allowed MOM repo text file."""
+    return await dispatch("mom_write_file", {"path": path, "content": content, "overwrite": bool(overwrite)})
+
+@mcp.tool()
+async def mom_validate(paths: list[str], mode: str = "py_compile") -> dict[str, Any]:
+    """Run an allow-listed validation over allowed MOM repo files."""
+    return await dispatch("mom_validate", {"paths": paths, "mode": mode}, timeout=120.0)
+
+@mcp.tool()
+async def mom_git_commit(message: str, paths: list[str]) -> dict[str, Any]:
+    """Commit selected allowed MOM repo files."""
+    return await dispatch("mom_git_commit", {"message": message, "paths": paths}, timeout=90.0)
+
+@mcp.tool()
+async def mom_git_push() -> dict[str, Any]:
+    """Push the current MOM campaign branch to origin when idle."""
+    return await dispatch("mom_git_push", {}, timeout=180.0)
 
 def mcp_path() -> str:
     value = os.environ.get("MOM_RELAY_MCP_PATH", "/mcp").strip() or "/mcp"
