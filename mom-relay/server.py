@@ -144,7 +144,7 @@ async def agent_poll(request: Request) -> Response:
 
 async def agent_respond(request: Request) -> Response:
     global AGENT_LAST_SEEN
-    denied = require_agent(request)
+    denied = await require_agent(request)
     if denied:
         return denied
     AGENT_LAST_SEEN = now()
