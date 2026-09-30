@@ -4,11 +4,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import contextlib
+import hashlib
 import os
 import time
 import uuid
 from typing import Any
 
+import httpx2
 import uvicorn
 from mcp.server import MCPServer
 from starlette.requests import Request
@@ -41,11 +43,52 @@ def bearer(request: Request) -> str:
         return value[7:].strip()
     return ""
 
-def require_agent(request: Request) -> Response | None:
-    expected = os.environ.get("MOM_RELAY_AGENT_TOKEN", "")
-    if not expected:
-        return JSONResponse({"error": "relay agent token not configured"}, status_code=503)
-    if bearer(request) != expected:
+GITHUB_TOKEN_CACHE: dict[str, float] = {}
+
+async def agent_authorized(request: Request) -> bool:
+    supplied = bearer(request)
+    if not supplied:
+        return False
+
+    static_expected = os.environ.get("MOM_RELAY_AGENT_TOKEN", "")
+    if static_expected and supplied == static_expected:
+        return True
+
+    expected_login = os.environ.get("MOM_RELAY_GITHUB_LOGIN", "").strip()
+    if not expected_login:
+        return False
+
+    digest = hashlib.sha256(supplied.encode("utf-8")).hexdigest()
+    if GITHUB_TOKEN_CACHE.get(digest, 0.0) > now():
+        return True
+
+    try:
+        async with httpx2.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                "https://api.github.com/user",
+                headers={
+                    "Authorization": f"Bearer {supplied}",
+                    "Accept": "application/vnd.github+json",
+                    "User-Agent": "mom-control-relay",
+                },
+            )
+        if response.status_code != 200:
+            return False
+        login = str((response.json() or {}).get("login") or "")
+        if login.casefold() != expected_login.casefold():
+            return False
+        GITHUB_TOKEN_CACHE[digest] = now() + 600.0
+        if len(GITHUB_TOKEN_CACHE) > 64:
+            cutoff = now()
+            for key, expiry in list(GITHUB_TOKEN_CACHE.items()):
+                if expiry <= cutoff:
+                    GITHUB_TOKEN_CACHE.pop(key, None)
+        return True
+    except Exception:
+        return False
+
+async def require_agent(request: Request) -> Response | None:
+    if not await agent_authorized(request):
         return JSONResponse({"error": "unauthorized"}, status_code=401)
     return None
 
@@ -82,7 +125,7 @@ async def dispatch(tool: str, arguments: dict[str, Any], timeout: float = 45.0) 
 
 async def agent_poll(request: Request) -> Response:
     global AGENT_LAST_SEEN, AGENT_NAME
-    denied = require_agent(request)
+    denied = await require_agent(request)
     if denied:
         return denied
     try:
@@ -225,8 +268,8 @@ def main() -> int:
     ap.add_argument("--host", default=os.environ.get("HOST", "0.0.0.0"))
     ap.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8877")))
     args = ap.parse_args()
-    if not os.environ.get("MOM_RELAY_AGENT_TOKEN"):
-        raise SystemExit("MOM_RELAY_AGENT_TOKEN is required")
+    if not os.environ.get("MOM_RELAY_AGENT_TOKEN") and not os.environ.get("MOM_RELAY_GITHUB_LOGIN"):
+        raise SystemExit("Configure MOM_RELAY_AGENT_TOKEN or MOM_RELAY_GITHUB_LOGIN")
     if not os.environ.get("MOM_RELAY_PLUGIN_TOKEN"):
         raise SystemExit("MOM_RELAY_PLUGIN_TOKEN is required")
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
