@@ -218,28 +218,15 @@ async def mom_sync() -> dict[str, Any]:
     """Fast-forward the MOM worktree when the supervisor is idle."""
     return await dispatch("mom_sync", {})
 
-class PluginBearerGate:
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope.get("type") == "http" and scope.get("path", "").startswith("/mcp"):
-            expected = os.environ.get("MOM_RELAY_PLUGIN_TOKEN", "")
-            if not expected:
-                response = JSONResponse({"error": "relay plugin token not configured"}, status_code=503)
-                await response(scope, receive, send)
-                return
-            headers = {k.decode().lower(): v.decode() for k, v in scope.get("headers", [])}
-            supplied = headers.get("authorization", "")
-            if supplied != f"Bearer {expected}":
-                response = JSONResponse({"error": "unauthorized"}, status_code=401)
-                await response(scope, receive, send)
-                return
-        await self.app(scope, receive, send)
+def mcp_path() -> str:
+    value = os.environ.get("MOM_RELAY_MCP_PATH", "/mcp").strip() or "/mcp"
+    if not value.startswith("/"):
+        value = "/" + value
+    return value.rstrip("/") or "/mcp"
 
 def make_app():
     mcp_app = mcp.streamable_http_app(
-        streamable_http_path="/mcp",
+        streamable_http_path=mcp_path(),
         json_response=True,
         stateless_http=True,
         host="0.0.0.0",
@@ -259,7 +246,7 @@ def make_app():
         ],
         lifespan=lifespan,
     )
-    return PluginBearerGate(app)
+    return app
 
 app = make_app()
 
@@ -270,8 +257,6 @@ def main() -> int:
     args = ap.parse_args()
     if not os.environ.get("MOM_RELAY_AGENT_TOKEN") and not os.environ.get("MOM_RELAY_GITHUB_LOGIN"):
         raise SystemExit("Configure MOM_RELAY_AGENT_TOKEN or MOM_RELAY_GITHUB_LOGIN")
-    if not os.environ.get("MOM_RELAY_PLUGIN_TOKEN"):
-        raise SystemExit("MOM_RELAY_PLUGIN_TOKEN is required")
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
     return 0
 
