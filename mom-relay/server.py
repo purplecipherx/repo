@@ -219,6 +219,15 @@ async def mom_sync() -> dict[str, Any]:
     return await dispatch("mom_sync", {})
 
 @mcp.tool()
+async def mom_recover_supervisor(stale_after_seconds: int = 120) -> dict[str, Any]:
+    """Recover the MOM supervisor only when its heartbeat is stale and no job is active."""
+    return await dispatch(
+        "mom_recover_supervisor",
+        {"stale_after_seconds": int(stale_after_seconds)},
+        timeout=45.0,
+    )
+
+@mcp.tool()
 async def mom_read_file(path: str, start_line: int = 1, end_line: int = 400) -> dict[str, Any]:
     """Read a bounded text range from an allowed MOM repo file."""
     return await dispatch("mom_read_file", {"path": path, "start_line": int(start_line), "end_line": int(end_line)})
