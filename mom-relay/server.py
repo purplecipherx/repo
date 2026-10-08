@@ -203,7 +203,13 @@ async def mom_logs(experiment: int | None = None, lines: int = 120) -> dict[str,
 
 @mcp.tool()
 async def mom_enqueue(experiment: int, revision: int = 1, max_attempts: int = 1) -> dict[str, Any]:
-    """Queue one allow-listed numbered MOM experiment through the Windows agent."""
+    """Queue a numbered MOM experiment. Compatibility: revision=0 cancels that exact experiment.
+
+    Use mom_cancel for normal cancellation. The revision=0 shortcut lets
+    cached clients with the older six-tool schema stop a job immediately.
+    """
+    if int(revision) == 0:
+        return await dispatch("mom_cancel", {"experiment": int(experiment)})
     return await dispatch(
         "mom_enqueue",
         {
@@ -212,6 +218,14 @@ async def mom_enqueue(experiment: int, revision: int = 1, max_attempts: int = 1)
             "max_attempts": int(max_attempts),
         },
     )
+
+@mcp.tool()
+async def mom_cancel(experiment: int, revision: int | None = None) -> dict[str, Any]:
+    """Cancel a specific active/queued numbered MOM experiment, killing its process tree."""
+    args: dict[str, Any] = {"experiment": int(experiment)}
+    if revision is not None:
+        args["revision"] = int(revision)
+    return await dispatch("mom_cancel", args)
 
 @mcp.tool()
 async def mom_sync() -> dict[str, Any]:
