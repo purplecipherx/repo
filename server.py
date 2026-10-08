@@ -171,6 +171,14 @@ async def mom_enqueue(experiment: int, revision: int = 1, max_attempts: int = 1)
     )
 
 @mcp.tool()
+async def mom_cancel(experiment: int, revision: int | None = None) -> dict[str, Any]:
+    """Cancel one specific active or queued numbered MOM experiment, including its process tree."""
+    arguments: dict[str, Any] = {"experiment": int(experiment)}
+    if revision is not None:
+        arguments["revision"] = int(revision)
+    return await dispatch("mom_cancel", arguments)
+
+@mcp.tool()
 async def mom_sync() -> dict[str, Any]:
     """Fast-forward the MOM worktree when the supervisor is idle."""
     return await dispatch("mom_sync", {})
