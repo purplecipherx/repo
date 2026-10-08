@@ -260,6 +260,43 @@ async def mom_git_push() -> dict[str, Any]:
     """Push the current MOM campaign branch to origin when idle."""
     return await dispatch("mom_git_push", {}, timeout=180.0)
 
+@mcp.tool()
+async def mom_workspace_list(path: str, limit: int = 100) -> dict[str, Any]:
+    """List the approved owner workspace, including D:/WanGP, through the Windows agent."""
+    return await dispatch("mom_workspace_list", {"path": path, "limit": int(limit)})
+
+@mcp.tool()
+async def mom_workspace_read(path: str, start_line: int = 1, end_line: int = 250) -> dict[str, Any]:
+    """Read a bounded text file inside an approved owner workspace."""
+    return await dispatch("mom_workspace_read", {
+        "path": path, "start_line": int(start_line), "end_line": int(end_line),
+    })
+
+@mcp.tool()
+async def mom_workspace_write(path: str, content: str, expected_sha256: str = "") -> dict[str, Any]:
+    """Create an approved workspace file, or replace with optimistic hash validation."""
+    return await dispatch("mom_workspace_write", {
+        "path": path, "content": content, "expected_sha256": expected_sha256,
+    })
+
+@mcp.tool()
+async def mom_workspace_patch(path: str, old_string: str, new_string: str,
+                              expected_replacements: int = 1, expected_sha256: str = "") -> dict[str, Any]:
+    """Exact-count safe patch to a file within an approved owner workspace."""
+    return await dispatch("mom_workspace_patch", {
+        "path": path, "old_string": old_string, "new_string": new_string,
+        "expected_replacements": int(expected_replacements),
+        "expected_sha256": expected_sha256,
+    })
+
+@mcp.tool()
+async def mom_workspace_run(path: str, args: list[str] | None = None,
+                            timeout_seconds: int = 60) -> dict[str, Any]:
+    """Run one approved workspace script without a shell; capped at two minutes."""
+    return await dispatch("mom_workspace_run", {
+        "path": path, "args": args or [], "timeout_seconds": int(timeout_seconds),
+    }, timeout=min(135.0, max(10.0, float(timeout_seconds) + 12.0)))
+
 def mcp_path() -> str:
     value = os.environ.get("MOM_RELAY_MCP_PATH", "/mcp").strip() or "/mcp"
     if not value.startswith("/"):
