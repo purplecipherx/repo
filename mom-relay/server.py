@@ -300,6 +300,128 @@ async def mom_recover_supervisor(stale_after_seconds: int = 120) -> dict[str, An
     """Recover MOM research supervisor only when heartbeat is stale and no job is active."""
     return await dispatch("mom_recover_supervisor", {"stale_after_seconds":stale_after_seconds}, timeout=100.0)
 
+
+# Human-friendly desktop tools. All operations delegate to the audited MOM
+# desktop controller; its path restrictions and SHA checks remain authoritative.
+async def _desktop_call(action: str, params: dict[str, Any], timeout: float = 60.0) -> dict[str, Any]:
+    return await dispatch("mom_desktop", {"action": action, "params": params}, timeout=timeout)
+
+@mcp.tool()
+async def mom_desktop_directory(path: str, offset: int = 0, limit: int = 100) -> dict[str, Any]:
+    """List files and folders on the authorized Windows computer."""
+    return await _desktop_call("list", {"path":path, "offset":offset, "limit":limit})
+
+@mcp.tool()
+async def mom_desktop_file_info(path: str) -> dict[str, Any]:
+    """Get Windows file metadata, SHA256, and spreadsheet sheet names when available."""
+    return await _desktop_call("file_info", {"path":path})
+
+@mcp.tool()
+async def mom_desktop_read_text(path: str, start: int = 1, count: int = 250) -> dict[str, Any]:
+    """Read a bounded section of a Windows text file."""
+    return await _desktop_call("read", {"path":path, "start":start, "count":count})
+
+@mcp.tool()
+async def mom_desktop_read_many(paths: list[str], lines: int = 80) -> dict[str, Any]:
+    """Read up to fifteen files, each with a bounded excerpt."""
+    return await _desktop_call("read_multiple", {"paths":paths, "lines":lines})
+
+@mcp.tool()
+async def mom_desktop_write_text(path: str, content: str, expected_sha256: str = "") -> dict[str, Any]:
+    """Create a Windows text file; overwrites require the matching file SHA256."""
+    return await _desktop_call("write", {"path":path, "content":content, "expected_sha256":expected_sha256})
+
+@mcp.tool()
+async def mom_desktop_edit_text(path: str, old_string: str, new_string: str, expected_replacements: int = 1,
+                                expected_sha256: str = "") -> dict[str, Any]:
+    """Apply precise replacements to a Windows text file and report its new SHA."""
+    return await _desktop_call("edit_block", {"path":path, "old_string":old_string,
+                               "new_string":new_string, "expected_replacements":expected_replacements,
+                               "expected_sha256":expected_sha256})
+
+@mcp.tool()
+async def mom_desktop_copy_file(source: str, destination: str,
+                                expected_destination_sha256: str = "") -> dict[str, Any]:
+    """Copy a file to another approved workspace; reject unchecked overwrites."""
+    return await _desktop_call("copy_file", {"source":source, "destination":destination,
+                               "expected_destination_sha256":expected_destination_sha256})
+
+@mcp.tool()
+async def mom_desktop_move_file(source: str, destination: str,
+                                expected_destination_sha256: str = "") -> dict[str, Any]:
+    """Move or rename a file between approved workspaces."""
+    return await _desktop_call("move_file", {"source":source, "destination":destination,
+                               "expected_destination_sha256":expected_destination_sha256})
+
+@mcp.tool()
+async def mom_desktop_search(path: str, term: str, names_only: bool = False,
+                             max_files: int = 1000) -> dict[str, Any]:
+    """Search bounded Windows directory trees by filename or text contents."""
+    return await _desktop_call("search", {"path":path, "term":term,
+                               "names_only":names_only, "max_files":max_files})
+
+@mcp.tool()
+async def mom_desktop_terminal(argv: list[str], cwd: str = "", timeout_seconds: int = 60) -> dict[str, Any]:
+    """Execute an allow-listed Windows program with explicit argv and a bounded timeout."""
+    params: dict[str,Any] = {"argv":argv,"timeout":timeout_seconds}
+    if cwd: params["cwd"]=cwd
+    return await _desktop_call("run", params, timeout=195.0)
+
+@mcp.tool()
+async def mom_desktop_process_start(argv: list[str], cwd: str = "") -> dict[str, Any]:
+    """Launch an audited detached Windows process and return a job ID."""
+    params: dict[str, Any] = {"argv":argv}
+    if cwd: params["cwd"]=cwd
+    return await _desktop_call("start", params)
+
+@mcp.tool()
+async def mom_desktop_process_status(id: str) -> dict[str, Any]:
+    """Check a detached MOM desktop process by job ID."""
+    return await _desktop_call("job", {"id":id})
+
+@mcp.tool()
+async def mom_desktop_excel_read(path: str, sheet: str = "", start_row: int = 1,
+                                 row_count: int = 30, column_count: int = 16) -> dict[str, Any]:
+    """Read a bounded range from an Excel workbook without launching Excel."""
+    params={"path":path,"start_row":start_row,"row_count":row_count,"column_count":column_count}
+    if sheet:params["sheet"]=sheet
+    return await _desktop_call("spreadsheet_read",params)
+
+@mcp.tool()
+async def mom_desktop_excel_edit(path: str, start_cell: str, values: list[list[Any]],
+                                 expected_sha256: str, sheet: str = "") -> dict[str, Any]:
+    """Edit an Excel cell matrix after verifying the workbook SHA256."""
+    params={"path":path,"start_cell":start_cell,"values":values,"expected_sha256":expected_sha256}
+    if sheet:params["sheet"]=sheet
+    return await _desktop_call("spreadsheet_edit",params)
+
+@mcp.tool()
+async def mom_desktop_pdf_read(path: str, start_page: int = 1,
+                               page_count: int = 3) -> dict[str, Any]:
+    """Extract text from a bounded page range of a local PDF."""
+    return await _desktop_call("pdf_read",{"path":path,"start_page":start_page,"page_count":page_count})
+
+@mcp.tool()
+async def mom_desktop_image_info(path: str) -> dict[str, Any]:
+    """Inspect a local image's dimensions, transparency and format."""
+    return await _desktop_call("image_info",{"path":path})
+
+@mcp.tool()
+async def mom_desktop_capture(max_width: int = 1200, all_screens: bool = False) -> dict[str, Any]:
+    """Capture a resized Windows screenshot through the authorized MOM agent."""
+    return await _desktop_call("screenshot",{"max_width":max_width,"all_screens":all_screens})
+
+@mcp.tool()
+async def mom_desktop_android(operation: str = "devices", serial: str = "emulator-5554",
+                              x: int = 0, y: int = 0, x2: int = 0, y2: int = 0,
+                              duration_ms: int = 350, key: int = 0, package: str = "",
+                              lines: int = 100) -> dict[str, Any]:
+    """Android emulator control: devices, screenshot, tap, swipe, keyevent, launch, logcat."""
+    return await _desktop_call("adb", {"operation":operation,"serial":serial,"x":x,"y":y,
+                              "x2":x2,"y2":y2,"duration_ms":duration_ms,
+                              "key":key,"package":package,"lines":lines})
+
+
 def mcp_path() -> str:
     value = os.environ.get("MOM_RELAY_MCP_PATH", "/mcp").strip() or "/mcp"
     if not value.startswith("/"):
