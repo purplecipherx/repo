@@ -215,42 +215,8 @@ async def mom_enqueue(experiment: int, revision: int = 1, max_attempts: int = 1)
 
 @mcp.tool()
 async def mom_sync() -> dict[str, Any]:
-    """Recover only stale N9915 MCP restart if necessary, then safely fast-forward MOM."""
-    state = await dispatch("mom_status", {"log_lines": 0})
-    active = (((state.get("result") or {}).get("suite") or {}).get("current_job") or {})
-    recovered = None
-    if active.get("key") == "N9915_MCP@1":
-        cancel = await dispatch("mom_cancel", {"experiment": 9915, "revision": 1}, timeout=50.0)
-        recovered = {"target": "N9915_MCP@1", "cancel_result": cancel}
-        for _ in range(9):
-            await asyncio.sleep(2.0)
-            probe = await dispatch("mom_status", {"log_lines": 0})
-            running = (((probe.get("result") or {}).get("suite") or {}).get("current_job") or {})
-            if not running:
-                break
-        else:
-            return {"ok": False, "reason": "N9915 cancellation did not release supervisor; no sync attempted", "recovery": recovered}
-    synced = await dispatch("mom_sync", {}, timeout=195.0)
-    result = {"ok": synced.get("ok"), "result": synced.get("result"), "recovery": recovered}
-    if (synced.get("ok") and (synced.get("result") or {}).get("synced")):
-        state = await dispatch("mom_status", {"log_lines": 0})
-        active = (((state.get("result") or {}).get("suite") or {}).get("current_job") or {})
-        if not active:
-            desktop = r"C:\Users\cypher\Desktop\TRIP-HAPPENS-Art-Concept"
-            probe = await dispatch("mom_desktop", {"action":"tree",
-                                    "params":{"path":desktop,"depth":1,"limit":15}},timeout=50.0)
-            result["desktop_tree_probe"] = probe
-            data = probe.get("result") or {}
-            if not (probe.get("ok") and data.get("ok")):
-                repo_dir = r"C:\Users\cypher\Desktop\M0J1M0J1_MOM"
-                runner = repo_dir + r"\scripts\RESTART_MOM_LOCAL_MCP_AFTER_SYNC_WINDOWS.ps1"
-                restart = await dispatch("mom_desktop", {"action":"start",
-                    "params":{"argv":["powershell.exe","-NoProfile","-NonInteractive",
-                                      "-ExecutionPolicy","Bypass","-File",runner],
-                              "cwd":repo_dir}},timeout=50.0)
-                result["local_mcp_restart"] = restart
-    return result
-
+    """Fast-forward the MOM worktree when the supervisor is idle."""
+    return await dispatch("mom_sync", {})
 
 # Expose the complete owner-authorized Windows control surface. These are
 # pass-through calls; Windows-side validation and auditing remain authoritative.
