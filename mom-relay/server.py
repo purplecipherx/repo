@@ -231,7 +231,25 @@ async def mom_sync() -> dict[str, Any]:
         else:
             return {"ok": False, "reason": "N9915 cancellation did not release supervisor; no sync attempted", "recovery": recovered}
     synced = await dispatch("mom_sync", {}, timeout=195.0)
-    return {"ok": synced.get("ok"), "result": synced.get("result"), "recovery": recovered}
+    result = {"ok": synced.get("ok"), "result": synced.get("result"), "recovery": recovered}
+    if (synced.get("ok") and (synced.get("result") or {}).get("synced")):
+        state = await dispatch("mom_status", {"log_lines": 0})
+        active = (((state.get("result") or {}).get("suite") or {}).get("current_job") or {})
+        if not active:
+            desktop = r"C:\Users\cypher\Desktop\TRIP-HAPPENS-Art-Concept"
+            probe = await dispatch("mom_desktop", {"action":"tree",
+                                    "params":{"path":desktop,"depth":1,"limit":15}},timeout=50.0)
+            result["desktop_tree_probe"] = probe
+            data = probe.get("result") or {}
+            if not (probe.get("ok") and data.get("ok")):
+                repo_dir = r"C:\Users\cypher\Desktop\M0J1M0J1_MOM"
+                runner = repo_dir + r"\scripts\RESTART_MOM_LOCAL_MCP_AFTER_SYNC_WINDOWS.ps1"
+                restart = await dispatch("mom_desktop", {"action":"start",
+                    "params":{"argv":["powershell.exe","-NoProfile","-NonInteractive",
+                                      "-ExecutionPolicy","Bypass","-File",runner],
+                              "cwd":repo_dir}},timeout=50.0)
+                result["local_mcp_restart"] = restart
+    return result
 
 
 # Expose the complete owner-authorized Windows control surface. These are
