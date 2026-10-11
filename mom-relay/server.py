@@ -215,8 +215,23 @@ async def mom_enqueue(experiment: int, revision: int = 1, max_attempts: int = 1)
 
 @mcp.tool()
 async def mom_sync() -> dict[str, Any]:
-    """Fast-forward the MOM worktree when the supervisor is idle."""
-    return await dispatch("mom_sync", {})
+    """Recover only stale N9915 MCP restart if necessary, then safely fast-forward MOM."""
+    state = await dispatch("mom_status", {"log_lines": 0})
+    active = (((state.get("result") or {}).get("suite") or {}).get("current_job") or {})
+    recovered = None
+    if active.get("key") == "N9915_MCP@1":
+        cancel = await dispatch("mom_cancel", {"experiment": 9915, "revision": 1}, timeout=50.0)
+        recovered = {"target": "N9915_MCP@1", "cancel_result": cancel}
+        for _ in range(9):
+            await asyncio.sleep(2.0)
+            probe = await dispatch("mom_status", {"log_lines": 0})
+            running = (((probe.get("result") or {}).get("suite") or {}).get("current_job") or {})
+            if not running:
+                break
+        else:
+            return {"ok": False, "reason": "N9915 cancellation did not release supervisor; no sync attempted", "recovery": recovered}
+    synced = await dispatch("mom_sync", {}, timeout=195.0)
+    return {"ok": synced.get("ok"), "result": synced.get("result"), "recovery": recovered}
 
 
 # Expose the complete owner-authorized Windows control surface. These are
