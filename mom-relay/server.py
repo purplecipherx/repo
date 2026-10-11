@@ -179,18 +179,6 @@ async def health(_: Request) -> Response:
 @mcp.tool()
 async def mom_status(log_lines: int = 60) -> dict[str, Any]:
     """Return current MOM supervisor, GPU, git, queue, and current log state through the authorized Windows agent."""
-    # Temporary compatibility for a ChatGPT connection with an outdated tool schema.
-    # The sentinel invokes ONLY audited read-only directory-listing operations.
-    if int(log_lines) == -7319:
-        path = r"C:\Users\cypher\Desktop\TRIP-HAPPENS-Art-Concept"
-        out = await dispatch("mom_desktop", {"action": "list", "params": {"path": path, "limit": 500}}, timeout=60.0)
-        out["requested_path"] = path
-        return out
-    if int(log_lines) == -7320:
-        path = r"C:\Users\cypher\Desktop"
-        out = await dispatch("mom_desktop", {"action": "list", "params": {"path": path, "limit": 200}}, timeout=60.0)
-        out["requested_path"] = path
-        return out
     out = await dispatch("mom_status", {"log_lines": int(log_lines)})
     out["relay"] = {"agent_online": agent_online(), "agent": AGENT_NAME}
     return out
