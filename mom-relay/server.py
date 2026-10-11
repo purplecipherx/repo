@@ -422,6 +422,40 @@ async def mom_desktop_android(operation: str = "devices", serial: str = "emulato
                               "key":key,"package":package,"lines":lines})
 
 
+@mcp.tool()
+async def mom_desktop_tree(path: str, depth: int = 2, limit: int = 200) -> dict[str, Any]:
+    """Browse an owner-approved Windows folder recursively, without visiting sensitive directories."""
+    return await dispatch("mom_desktop", {"action":"tree","params":{"path":path,"depth":depth,"limit":limit}})
+
+@mcp.tool()
+async def mom_desktop_session_start(argv: list[str], cwd: str = "", max_runtime_s: int = 600) -> dict[str, Any]:
+    """Start a bounded interactive terminal process on Windows, using an argv array and approved cwd."""
+    params: dict[str, Any] = {"argv":argv,"max_runtime_s":max_runtime_s}
+    if cwd: params["cwd"] = cwd
+    return await dispatch("mom_desktop",{"action":"session_start","params":params})
+
+@mcp.tool()
+async def mom_desktop_session_output(id: str, stream: str = "stdout", offset: int = 0,
+                                     max_bytes: int = 12000) -> dict[str, Any]:
+    """Read paged stdout/stderr from an interactive MOM Windows terminal session."""
+    return await dispatch("mom_desktop",{"action":"session_output",
+                          "params":{"id":id,"stream":stream,"offset":offset,"max_bytes":max_bytes}})
+
+@mcp.tool()
+async def mom_desktop_session_input(id: str, text: str) -> dict[str, Any]:
+    """Send text to the stdin of a running interactive MOM Windows terminal session."""
+    return await dispatch("mom_desktop",{"action":"session_input","params":{"id":id,"text":text}})
+
+@mcp.tool()
+async def mom_desktop_session_stop(id: str) -> dict[str, Any]:
+    """Terminate one explicitly identified MOM interactive terminal session."""
+    return await dispatch("mom_desktop",{"action":"session_stop","params":{"id":id}})
+
+@mcp.tool()
+async def mom_desktop_session_list() -> dict[str, Any]:
+    """List running and recent MOM interactive terminal sessions."""
+    return await dispatch("mom_desktop",{"action":"session_list","params":{}})
+
 def mcp_path() -> str:
     value = os.environ.get("MOM_RELAY_MCP_PATH", "/mcp").strip() or "/mcp"
     if not value.startswith("/"):
