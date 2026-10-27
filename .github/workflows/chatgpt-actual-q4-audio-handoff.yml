@@ -1,0 +1,25 @@
+name: ChatGPT encrypted real-Q4 audio handoff
+on:
+  push:
+    branches:
+      - chatgpt-encrypted-audio-transfer-20261025
+    paths:
+      - audio-relay/DRAMA5G_Q4_10sec_ciphertext.b64
+jobs:
+  handoff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate encrypted payload exists
+        run: |
+          test -s audio-relay/DRAMA5G_Q4_10sec_ciphertext.b64
+          test "$(wc -c <audio-relay/DRAMA5G_Q4_10sec_ciphertext.b64)" -gt 50000
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dramalite-real-q4-audio-encrypted
+          path: audio-relay/DRAMA5G_Q4_10sec_ciphertext.b64
+          if-no-files-found: error
+          retention-days: 1
