@@ -1,0 +1,19 @@
+name: ChatGPT public-repo connector file handoff test
+on:
+  push:
+    branches:
+      - chatgpt-encrypted-audio-transfer-20261025
+    paths:
+      - .github/workflows/chatgpt-test-handoff.yml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chatgpt-test-handoff
+          path: audio-relay/test.txt
+          retention-days: 1
